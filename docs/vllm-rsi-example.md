@@ -1,5 +1,8 @@
 # An optimization loop on vLLM + kern: Qwen3.8-27B
 
+**Interactive page: [kern-baa.pages.dev/rsi](https://kern-baa.pages.dev/rsi/)**, every
+measurement the agents took over the night.
+
 ## Summary
 
 [vllm.md](vllm.md) runs a kern manifest as the model inside vLLM and sketches
@@ -20,9 +23,6 @@ Side by side, with the same vLLM, scheduler limits and traffic:
   and 15% more output tokens per second, at 27% lower inter-token latency.
 - **Against kern's own starting manifest**, the loop cut the GPU time of the
   same traffic by **5.3%** (+5.7% requests online).
-
-The page [kern-baa.pages.dev/rsi](https://kern-baa.pages.dev/rsi/) plots every
-measurement the agents took over the night.
 
 ## Why the bench stands for production
 
