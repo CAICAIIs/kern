@@ -67,8 +67,24 @@ harness: most of what improved over the night was the loop itself (see
 
 ### 1. Serve and trace
 
-With `KERN_TRACE=<dir>` the plugin writes one JSON line per step: query
-length and sequence length per request.
+The loop's input is not a benchmark someone wrote. It is the workload vLLM
+actually served, recorded from inside the server while it serves.
+
+vLLM schedules a batch every step, and kern runs it as the model's forward
+pass. With `KERN_TRACE=<dir>`, the plugin writes each batch it is handed as
+one JSON line: a timestamp, then per request its query length `q` (tokens
+computed this step) and sequence length `s` (tokens in context, cache hits
+included). That is every forward pass of the hour, in order, exactly as vLLM
+scheduled it:
+
+- batch sizes set by real arrivals and tool-call gaps;
+- chunked prefill packed next to decode rows;
+- context lengths of real agent sessions, up to 256k;
+- prefix-cache hits that shrink a prefill to its uncached tail.
+
+Nothing is sampled or synthesized, and nothing about the tokens themselves is
+kept. What sets a step's GPU cost is its shape, and the shape is recorded in
+full, so kern can rebuild any step of the hour on its own.
 
 ```json
 {"t":1790388882823487775,"q":[1,1,1,1,1,1,1,1],"s":[196295,165202,140890,120581,208896,105929,107300,110164]}
