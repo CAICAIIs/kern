@@ -203,6 +203,17 @@ each, all three at once, AgentX replay at concurrency 24 for 3600 s with the
 same seed. Stock vLLM runs its defaults (torch.compile, full and piecewise
 graphs).
 
+Each server was driven by aiperf 0.13.0:
+
+```bash
+aiperf profile --scenario inferencex-agentx-mvp \
+  --public-dataset semianalysis_cc_traces_weka_062126_256k \
+  --url localhost:8000 --endpoint-type chat --streaming \
+  --model qwen38 --tokenizer <Qwen3.8-27B weights> \
+  --max-context-length 262144 --concurrency 24 --use-server-token-count \
+  --benchmark-duration 3600 --random-seed 20260925 --artifact-dir <out>
+```
+
 | | vLLM | vLLM + kern, start | vLLM + kern, optimized |
 |---|---|---|---|
 | requests in 1 h | 1310 | 1446 | **1528** |
