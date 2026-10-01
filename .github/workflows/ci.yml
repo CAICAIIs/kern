@@ -38,14 +38,42 @@ jobs:
           components: rustfmt, clippy
 
       - name: Format check
-        run: cargo fmt --check
+        # Both workspaces: `cargo fmt` walks the one it runs in, and kern-serve
+        # is a workspace of its own.
+        run: |
+          cargo fmt --check
+          cargo fmt --check --manifest-path crates/kern-serve/Cargo.toml
+
+      - name: One version for both binaries
+        # kern-serve cannot inherit `[workspace.package]` any more, so this is
+        # what keeps the two in step; a release tag is compared against the
+        # runtime's version alone.
+        run: |
+          set -euo pipefail
+          root=$(cargo pkgid -p kern-run | sed 's/.*[@#]//')
+          serve=$(cargo metadata --no-deps --format-version 1 --manifest-path crates/kern-serve/Cargo.toml \
+                  | python3 -c 'import json, sys; print(json.load(sys.stdin)["packages"][0]["version"])')
+          if [ "$root" != "$serve" ]; then
+            echo "::error::kern is $root and kern-serve is $serve; one release tags both"
+            exit 1
+          fi
+
+      - name: The runtime resolves without a git source
+        # The serving stack's pinned git dependencies live in its own
+        # workspace; a git source here would make every build of the runtime
+        # fetch them.
+        run: |
+          if grep -q 'source = "git+' Cargo.lock; then
+            echo "::error::Cargo.lock names a git source; the runtime resolves against crates.io alone"
+            exit 1
+          fi
 
       - uses: mozilla-actions/sccache-action@v0.0.9
 
       - name: Clippy
-        # The workspace's default members: the runtime compiles anywhere,
-        # cudarc loads libcuda at run time. kern-serve needs protoc and
-        # libssl-dev and is built by the release pipeline.
+        # The runtime's default members: they compile anywhere, cudarc loads
+        # libcuda at run time. kern-serve is its own workspace and needs protoc
+        # and libssl-dev; the hawk job compiles it.
         run: cargo clippy --all-targets -- -D warnings
 
       - name: Test
@@ -97,9 +125,10 @@ jobs:
     # is enforced: a `pub(crate)` cannot cross a crate boundary, so that class
     # is exact. `dead_public` and `unnecessary_public` stay an audit tool until
     # the public surface is trimmed; see the `hawk` skill. Hawk is built
-    # against one exact rustc; bump both together. Hawk compiles the whole
-    # workspace, kern-serve included, so the job needs the serving stack's
-    # build dependencies and keeps its target directory between runs.
+    # against one exact rustc; bump both together. Hawk compiles a whole
+    # workspace, so it runs once for the runtime's and once for kern-serve's,
+    # which is why the job needs the serving stack's build dependencies and
+    # keeps one target directory between runs.
     runs-on: ubuntu-latest
     env:
       HAWK_VERSION: "0.1.14"
@@ -135,3 +164,7 @@ jobs:
           cargo +"$HAWK_RUST" hawk check --color always --target-dir target/hawk \
             -A hawk::dead_public -A hawk::unnecessary_public \
             -D hawk::unnecessary_restricted_visibility
+          ( cd crates/kern-serve
+            cargo +"$HAWK_RUST" hawk check --color always --target-dir ../../target/hawk \
+              -A hawk::dead_public -A hawk::unnecessary_public \
+              -D hawk::unnecessary_restricted_visibility )

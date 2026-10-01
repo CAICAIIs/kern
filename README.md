@@ -116,7 +116,9 @@ cargo build --release
 Serve a configured target with the independent HTTP server:
 
 ```bash
-cargo build --release -p kern-serve   # or use the kern-serve the release installs
+# kern-serve is a workspace of its own (the vLLM front end and its pinned git
+# dependencies); it builds into the same target/ and needs protoc and libssl-dev
+cargo build --release --manifest-path crates/kern-serve/Cargo.toml
 KERN_SERVE_BIN="$PWD/target/release/kern-serve" \
   ./target/release/kern server qwen3-4b --port 8000
 ```
