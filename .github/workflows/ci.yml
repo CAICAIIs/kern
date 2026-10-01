@@ -68,18 +68,48 @@ jobs:
             exit 1
           fi
 
+      - name: Both workspaces resolve the runtime at the same versions
+        # Two locks, one runtime: a dependency bumped in one of them alone
+        # would give the two binaries of a release different versions of the
+        # same crate, which the runtime id cannot see.
+        run: cargo test -p kern-run --test locks
+
       - uses: mozilla-actions/sccache-action@v0.0.9
 
       - name: Clippy
         # The runtime's default members: they compile anywhere, cudarc loads
         # libcuda at run time. kern-serve is its own workspace and needs protoc
-        # and libssl-dev; the hawk job compiles it.
+        # and libssl-dev; the serve job builds and tests it.
         run: cargo clippy --all-targets -- -D warnings
 
       - name: Test
-        # The runtime's tests are host-side (Pool, Prefix, Host, values); the
-        # GPU gate is `kern test`.
-        run: cargo test -p kern-manifest -p kern-pool -p kern-runtime -p kern-test
+        # The runtime's tests are host-side (Pool, Prefix, Host, values, the
+        # launcher's handover to kern-serve); the tests that want a GPU are
+        # `#[ignore]`d and the GPU gate is `kern test`.
+        run: cargo test -p kern-manifest -p kern-pool -p kern-runtime -p kern-test -p kern-run
+
+      - name: The runtime id follows every compile input
+        # A digest that skipped a file would wave a stale binary through, so
+        # change a PTX the runtime compiles in and check that the id moves —
+        # and that it comes back once the file does.
+        run: |
+          set -euo pipefail
+          id() { cargo run -q -p kern-run --bin kern -- --version | sed 's/.*runtime //'; }
+          ptx=crates/kern-runtime/src/profile.ptx
+          mkdir -p target
+          cp "$ptx" target/profile.ptx.bak
+          before=$(id)
+          printf '\n// id probe\n' >>"$ptx"
+          after=$(id)
+          mv target/profile.ptx.bak "$ptx"
+          if [ "$before" = "$after" ]; then
+            echo "::error::$ptx is not part of the runtime id"
+            exit 1
+          fi
+          if [ "$before" != "$(id)" ]; then
+            echo "::error::the runtime id did not come back after restoring $ptx"
+            exit 1
+          fi
 
       - name: Performance evidence regression tests
         run: python3 -m unittest discover -s tools -p test_profile.py
@@ -168,3 +198,24 @@ jobs:
             cargo +"$HAWK_RUST" hawk check --color always --target-dir ../../target/hawk \
               -A hawk::dead_public -A hawk::unnecessary_public \
               -D hawk::unnecessary_restricted_visibility )
+
+  serve:
+    # kern-serve is a workspace of its own, and its tests are about the two
+    # contracts that only appear at the boundary: the renderers against vLLM's
+    # own chat renderers, and the handover `kern server` makes to a server it
+    # did not build. Both need the serving stack's build dependencies.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler libssl-dev pkg-config
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+
+      - name: Test
+        run: cargo test --locked --manifest-path crates/kern-serve/Cargo.toml

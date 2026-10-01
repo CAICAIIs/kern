@@ -11,7 +11,7 @@ kern 的 release 是两个 binary：`kern` 与 `kern-serve`，Linux x86_64 与 a
 
 ```bash
 curl -fsSL https://kern-baa.pages.dev/install.sh | sh
-kern --version          # kern 0.2.0 (<commit>, cuda 13.0)
+kern --version          # kern 0.2.0 (<commit>, cuda 13.0, runtime <id>)
 ```
 
 - 网站的 `/install.sh` 是一条 302，指向最新 release 里的 `install.sh`；
@@ -71,7 +71,7 @@ GitHub runner 没有 GPU，流水线只能证明 binary 起得来。release 发�
 
 ```bash
 curl -fsSL https://kern-baa.pages.dev/install.sh | sh
-kern --version                  # commit 与 tag 一致，cuda 13.0
+kern --version                  # commit 与 tag 一致，cuda 13.0，runtime 与 kern-serve 的相同
 cd ~/kern-1 && kern test qwen3-4b   # 最后一行 PASS
 ```
 

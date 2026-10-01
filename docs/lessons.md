@@ -287,11 +287,15 @@ release 构建直接 panic（"attempted to zero-initialize type … which is inv
 
 **kern-serve 是独立 workspace，runtime 改了要单独重建。** 修了 device.rs 之后只重建
 了 kern-runtime 和 examples，kern-serve 还是旧的 runtime，门禁跑到一半 panic。规则：
-**运行门禁前先看 binary 的时间戳**，两个 binary 用一条命令编：
+**两个 binary 用一条命令编**：
 `cargo build -p kern-run --examples && cargo build --manifest-path crates/kern-serve/Cargo.toml`。
-2026-10-02 起 kern-serve 是 `crates/kern-serve/` 自己的 workspace（它的 git 依赖进
-同一个 workspace 时，每次构建 runtime 都要拉 pegainfer 与 vLLM），`.cargo/config.toml`
-让两个 workspace 共用仓库的 `target/`，两个 binary 的位置与从前一样。
+这条现在由机器查：kern-runtime 的 build.rs 把两个 binary 共用的四个 crate
+（kern-manifest / kern-pool / kern-runtime / kern-run）的源码摘要编成 `kern_runtime::ID`，
+`kern server` 把它交给 kern-serve，对不上就拒绝启动并给出重建命令——于是
+**挡在 `kern server` 这条路上的是摘要而不是时间戳**（直接起 kern-serve 时仍然只能看
+时间戳）。2026-10-02 起 kern-serve 是 `crates/kern-serve/` 自己的 workspace（它的 git
+依赖进同一个 workspace 时，每次构建 runtime 都要拉 pegainfer 与 vLLM），
+`.cargo/config.toml` 让两个 workspace 共用仓库的 `target/`，两个 binary 的位置与从前一样。
 
 **四层 K3 的 fixture 不在这个仓库。** `k3_golden` 默认的 `tests/fixtures/k3_4l_greedy.json`
 在 pegainfer-k3 里；tray08 的 K3 权重只有 EP8 shard，EP4 在 tray07。规则：门禁命令
